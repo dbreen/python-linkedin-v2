@@ -16,42 +16,17 @@ from .models import AccessToken
 from .utils import enum, to_utf8, raise_for_error, StringIO
 
 
-__all__ = ['LinkedInAuthentication', 'LinkedInApplication', 'PERMISSIONS']
+__all__ = ['LinkedInAuthentication', 'LinkedInApplication']
 
 PERMISSIONS = enum('Permission',
-                   COMPANY_ADMIN='rw_company_admin',
-                   BASIC_PROFILE='r_basicprofile',
+                   LITE_PROFILE='r_liteprofile',
                    FULL_PROFILE='r_fullprofile',
-                   EMAIL_ADDRESS='r_emailaddress',
-                   NETWORK='r_network',
-                   CONTACT_INFO='r_contactinfo',
-                   NETWORK_UPDATES='rw_nus',
-                   GROUPS='rw_groups',
-                   MESSAGES='w_messages')
+                   EMAIL_ADDRESS='r_emailaddress',)
 
 ENDPOINTS = enum('LinkedInURL',
                  BASE='https://api.linkedin.com/v2',
-                 CONNECTIONS='https://api.linkedin.com/v2/connections',
-                 PEOPLE='https://api.linkedin.com/v2/people',
-                 PEOPLE_SEARCH='https://api.linkedin.com/v2/people-search',
-                 GROUPS='https://api.linkedin.com/v2/groups',
-                 POSTS='https://api.linkedin.com/v2/posts',
-                 COMPANIES='https://api.linkedin.com/v2/companies',
-                 COMPANY_SEARCH='https://api.linkedin.com/v2/company-search',
-                 JOBS='https://api.linkedin.com/v2/jobs',
-                 JOB_SEARCH='https://api.linkedin.com/v2/job-search')
-
-NETWORK_UPDATES = enum('NetworkUpdate',
-                       APPLICATION='APPS',
-                       COMPANY='CMPY',
-                       CONNECTION='CONN',
-                       JOB='JOBS',
-                       GROUP='JGRP',
-                       PICTURE='PICT',
-                       EXTENDED_PROFILE='PRFX',
-                       CHANGED_PROFILE='PRFU',
-                       SHARED='SHAR',
-                       VIRAL='VIRL')
+                 ME='https://api.linkedin.com/v2/me',
+                 EMAIL='https://api.linkedin.com/v2/emailAddress',)
 
 
 class LinkedInDeveloperAuthentication(object):
@@ -171,26 +146,20 @@ class LinkedInApplication(object):
 
         return requests.request(method.upper(), url, **kw)
 
-    def get_connections(self, totals_only=None, params=None, headers=None):
-        count = '50'
-        if totals_only:
-            count = '0'
-        url = '%s?q=viewer&start=0&count=%s' % (ENDPOINTS.CONNECTIONS, count)
-        response = self.make_request('GET', url, params=params, headers=headers)
-        raise_for_error(response)
-        return response.json()
-
-    def get_profile(self, member_id=None, member_url=None, selectors=None,
-                    params=None, headers=None):
-        connections = 0
-        if selectors is not None and 'num-connections' in selectors:
-            connections_response = self.get_connections(totals_only=True)
-            connections_body = connections_response.get('paging', None)
-            connections = connections_body.get('total', 0)
-        
-        url = '%s/me' % ENDPOINTS.BASE
-        response = self.make_request('GET', url, params=params, headers=headers)
+    def get_profile(self):
+        url = ENDPOINTS.ME
+        response = self.make_request('GET', url)
         raise_for_error(response)
         json_response = response.json()
-        json_response.update({'numConnections': connections})
-        return json_response
+        return {
+            'firstName': json_response['localizedFirstName'],
+            'lastName': json_response['localizedLastName'],
+            'emailAddress': self.get_email(),
+        }
+
+    def get_email(self):
+        url = '%s?q=members&projection=(elements*(handle~))' % ENDPOINTS.EMAIL
+        response = self.make_request('GET', url)
+        raise_for_error(response)
+        json_response = response.json()
+        return json_response['elements'][0]['handle~']['emailAddress']

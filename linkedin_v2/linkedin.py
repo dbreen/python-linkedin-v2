@@ -162,4 +162,7 @@ class LinkedInApplication(object):
         response = self.make_request('GET', url)
         raise_for_error(response)
         json_response = response.json()
-        return json_response['elements'][0]['handle~']['emailAddress']
+        try:
+            return json_response['elements'][0]['handle~']['emailAddress']
+        except (IndexError, KeyError):
+            return ''
